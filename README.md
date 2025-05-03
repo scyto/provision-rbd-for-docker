@@ -74,8 +74,8 @@ From your guest VM or container host:
 ```bash
  scp root@<pve-node-name>:/etc/pve/priv/ceph/portainer-guest-pull.sh /tmp/ && bash /tmp/portainer-guest-pull.sh <pve-node-name>
 ```
-Note you will be asked to login multiple times, note if that is local or remote and use the right password.
 
+Note you will be asked to login multiple times, note if that is local or remote and use the right password.
 
 This will:
 
@@ -95,12 +95,6 @@ This will:
 
 ---
 
-## 📄 License
-
-MIT License
-
-
-
 # 🔗 Ceph RBD Provisioning & Mounting Guide
 
 This guide explains how to map, format, and mount a Ceph RBD image after running the provisioning script that installs required configs and authentication.
@@ -112,10 +106,10 @@ This guide explains how to map, format, and mount a Ceph RBD image after running
 Your have run both the provisioning script above, this uses portainer as the exaample assuming the original script was run as `./provision-rbd.sh portainer`
 You ran the client side script as described above and it:
 
-* ✅ Copied `ceph.conf` to `/etc/ceph/ceph.conf`
-* ✅ Installed keyring as `/etc/ceph/portainer.secret`
-* ✅ Created an RBD image in pool `docker-bind-rbd`, namespace `portainer`
-* ✅ Assigned permissions to `client.portainer`
+- ✅ Copied `ceph.conf` to `/etc/ceph/ceph.conf`
+- ✅ Installed keyring as `/etc/ceph/portainer.secret`
+- ✅ Created an RBD image in pool `docker-bind-rbd`, namespace `portainer`
+- ✅ Assigned permissions to `client.portainer`
 
 ---
 
@@ -135,7 +129,7 @@ rbd showmapped
 
 Expected output:
 
-```
+```bash
 id  pool             namespace  image  snap  device
 0   docker-bind-rbd  portainer  data   -     /dev/rbd0
 ```
@@ -195,24 +189,24 @@ sudo chown $USER:$USER /mnt/portainer-data
 
 1. Add this line to `/etc/ceph/rbdmap`:
 
-```ini
-docker-bind-rbd/portainer/data@portainer --namespace=portainer,keyfile=/etc/ceph/portainer.secret
-```
+    ```ini
+    docker-bind-rbd/portainer/data@portainer --namespace=portainer,keyfile=/etc/ceph/portainer.secret
+    ```
 
 2. Enable and start the rbdmap service:
 
-```bash
-sudo systemctl enable rbdmap
-sudo systemctl start rbdmap
-```
+    ```bash
+    sudo systemctl enable rbdmap
+    sudo systemctl start rbdmap
+    ```
 
 ---
 
-## ✅ Done!
+## ✅ Done'!'
 
 You now have a mounted, writable Ceph RBD block device ready for use at:
 
-```
+```bash
 /mnt/portainer-data
 ```
 
