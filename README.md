@@ -1,10 +1,35 @@
-# 🐘 provision-rbd-for-docker
+# Scripts for provisioing and deprovisioning RBDs for doccker bind mounts
+
+This was another of my first experiments in what could i get ChatGPT / GitHub Copilot to do for me given I can't code even the most basic of shell scripts.
+
+## The intent of these scripts is as follows':'
+
+- Assumes that i want to store docker bind mounts as a RBDs on ceph
+- That each service needs one or more RBDs
+- That a give service will only run once on a swarm node (i.e. this wont be written too)
+- That this is to let me evaluate if i think using cpehFS or cephRBD is better
+- That this speeds up and makes it consistent adding rbds and removing rbds (after creating the provisioing script it is trivial to create a deprovision script within the same chatgpt cobnversations)
+- while i did this for docker it can be used for any RBD that gets mounted over a network
+
+## AI Observations':'
+
+- boy do they like making the same mistake over and over
+- chatGPT is great for initial creation
+- github copilot in vscode is better to help refine and debug issues
+- one should constantly challenege the tools to explain if they did the right things if somethings look odd - sometimes they will correct code, sometimes they will explain indeed they did do it right and why (and then i learn't something)
+
+## This repo contains two scripts':'
+
+1. **rbd provision script** - this provisions the RBD and creates a help script to be run on the client that copies all needed ceph files to the client (but does not mmount the rbd)
+2. **the deprovision script** - this cleans up every created on the proxmox host, note it doesn't clean up the client, that you still have to do ny hand.
+
+## 🐘 provision-docker-rbd.sh
 
 This script provisions a Ceph RBD image for a given service in a dedicated namespace, sets up authentication, and generates a helper script to configure a guest (e.g., Docker host or VM) with access to the RBD image.
 
 ---
 
-## 🚀 Features
+### 🚀 Features
 
 - Creates a Ceph RBD namespace and image (if not already present)
 - Configures Ceph client authentication with scoped OSD and MON capabilities
@@ -14,7 +39,7 @@ This script provisions a Ceph RBD image for a given service in a dedicated names
 
 ---
 
-## 📦 Requirements
+### 📦 Requirements
 
 - Ceph CLI tools available on the Proxmox host
 - Access to the `/etc/pve/priv/ceph/` directory
@@ -23,13 +48,13 @@ This script provisions a Ceph RBD image for a given service in a dedicated names
 
 ---
 
-## 📝 Usage (run on any promox node)
+### 📝 Usage
 
 ```bash
 ./provision-rbd.sh <service> [size-in-MiB] [image-name] [pool-name]
 ```
 
-### Arguments
+#### Arguments
 
 | Argument        | Description                                                               | Default           |
 |-----------------|---------------------------------------------------------------------------|-------------------|
@@ -40,7 +65,7 @@ This script provisions a Ceph RBD image for a given service in a dedicated names
 
 ---
 
-## 🧪 Examples
+### 🧪 Examples
 
 ```bash
 # Create a 10GiB RBD image named 'data' for 'portainer' in default pool
@@ -55,7 +80,7 @@ This script provisions a Ceph RBD image for a given service in a dedicated names
 
 ---
 
-## 📁 What It Does
+### 📁 What It Does
 
 For a given `<service>`, the script will:
 
@@ -67,15 +92,14 @@ For a given `<service>`, the script will:
 
 ---
 
-## 🧳 Guest Setup (run on client that wull mount the rbd)
+### 🧳 Guest Setup
 
 From your guest VM or container host:
 
 ```bash
- scp root@<pve-node-name>:/etc/pve/priv/ceph/portainer-guest-pull.sh /tmp/ && bash /tmp/portainer-guest-pull.sh <pve-node-name>
+scp root@<proxmox-host>:/etc/pve/priv/ceph/portainer-guest-pull.sh /tmp/
+bash /tmp/portainer-guest-pull.sh <proxmox-host>
 ```
-
-Note you will be asked to login multiple times, note if that is local or remote and use the right password.
 
 This will:
 
@@ -87,7 +111,7 @@ This will:
 
 ---
 
-## 🔐 Notes
+### 🔐 Notes
 
 - You must run the script from a Proxmox host with access to `/etc/pve/priv/ceph/`.
 - Guests should have SSH access to the Proxmox node to pull credentials.
@@ -95,119 +119,32 @@ This will:
 
 ---
 
-# 🔗 Ceph RBD Provisioning & Mounting Guide
+## 🐘 deprovision-docker-rbd.sh
 
-This guide explains how to map, format, and mount a Ceph RBD image after running the provisioning script that installs required configs and authentication.
-
----
-
-## 💪 Prerequisites
-
-Your have run both the provisioning script above, this uses portainer as the exaample assuming the original script was run as `./provision-rbd.sh portainer`
-You ran the client side script as described above and it:
-
-- ✅ Copied `ceph.conf` to `/etc/ceph/ceph.conf`
-- ✅ Installed keyring as `/etc/ceph/portainer.secret`
-- ✅ Created an RBD image in pool `docker-bind-rbd`, namespace `portainer`
-- ✅ Assigned permissions to `client.portainer`
+This script deprovisions a Ceph RBD service created using `provision-rbd.sh`. It safely removes the RBD image, namespace (if empty), Ceph authentication credentials, and all associated secrets and guest helper files from a Proxmox host.
 
 ---
 
-## 🚀 Mount and Prepare RBD
+## 🚀 Features
 
-### 1. 🗺️ Map the RBD Image
-
-```bash
-sudo rbd map docker-bind-rbd/portainer/data --namespace portainer #i need to check this worked
-```
-
-Check mapping:
-
-```bash
-rbd showmapped
-```
-
-Expected output:
-
-```bash
-id  pool             namespace  image  snap  device
-0   docker-bind-rbd  portainer  data   -     /dev/rbd0
-```
+- Automatically unmaps the RBD device if it is still in use
+- Deletes the RBD image and cleans up the namespace only if it is empty
+- Removes Ceph client authentication and secrets
+- Deletes any generated helper scripts and `.tar.gz` credential archives
+- Confirms before deletion unless `--yes` is specified
+- Only works on a Proxmox host with access to `/etc/pve/priv/ceph/`
 
 ---
 
-### 2. 🧪 Check for Existing Filesystem
+## 🧳 Requirements
 
-```bash
-sudo blkid /dev/rbd0
-```
-
-If no filesystem is detected, format the device:
-
-```bash
-sudo mkfs.ext4 -L portainer_data /dev/rbd0
-```
+- Must be run on a **Proxmox host**
+- Requires access to `ceph`, `rbd`, and `/etc/pve/priv/ceph`
+- Requires appropriate privileges to remove Ceph auth, images, and secrets
 
 ---
 
-### 3. 📁 Mount the Device
+## 📝 Usage
 
 ```bash
-sudo mkdir -p /mnt/portainer-data
-sudo mount /dev/rbd0 /mnt/portainer-data
-```
-
----
-
-### 4. ✏️ Fix Permissions
-
-To allow all users access (e.g., for Docker bind mounts):
-
-```bash
-sudo chmod 777 /mnt/portainer-data
-```
-
-Or to assign it to a specific user:
-
-```bash
-sudo chown $USER:$USER /mnt/portainer-data
-```
-
----
-
-## ♻️ Persist Mapping and Mount Across Reboots
-
-### Option A: Add to `/etc/fstab`
-
-```fstab
-/dev/rbd0  /mnt/portainer-data  ext4  defaults,_netdev  0  2
-```
-
----
-
-### Option B: Use `/etc/ceph/rbdmap`
-
-1. Add this line to `/etc/ceph/rbdmap`:
-
-    ```ini
-    docker-bind-rbd/portainer/data@portainer --namespace=portainer,keyfile=/etc/ceph/portainer.secret
-    ```
-
-2. Enable and start the rbdmap service:
-
-    ```bash
-    sudo systemctl enable rbdmap
-    sudo systemctl start rbdmap
-    ```
-
----
-
-## ✅ Done'!'
-
-You now have a mounted, writable Ceph RBD block device ready for use at:
-
-```bash
-/mnt/portainer-data
-```
-
-Use it directly or bind-mount it into containers, VMs, or services.
+./delete-rbd-docker.service.sh <service-name> [--yes] [--image <name>] [--pool <name>]
